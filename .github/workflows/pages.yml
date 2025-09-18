@@ -35,8 +35,7 @@ jobs:
         run: npm ci
 
       - name: Build (Vite)
-        # base をリポジトリ名に自動設定し、サブパス公開に対応
-        run: npm run build -- --base="/${{ github.event.repository.name }}/"
+        run: npm run build
 
       - name: SPA fallback (404.html)
         # React Router などの SPA 対応: 404.html を index.html のコピーとして用意
