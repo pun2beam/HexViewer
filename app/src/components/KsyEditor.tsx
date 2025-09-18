@@ -1,11 +1,14 @@
 import { useSessionStore } from "../state/sessionStore";
+import { useShallow } from "zustand/react/shallow";
 
 export function KsyEditor() {
-  const { ksySource, setKsySource, applyKsy } = useSessionStore((state) => ({
-    ksySource: state.ksySource,
-    setKsySource: state.setKsySource,
-    applyKsy: state.applyKsy,
-  }));
+  const { ksySource, setKsySource, applyKsy } = useSessionStore(
+    useShallow((state) => ({
+      ksySource: state.ksySource,
+      setKsySource: state.setKsySource,
+      applyKsy: state.applyKsy,
+    })),
+  );
 
   return (
     <section className="ksy-editor">

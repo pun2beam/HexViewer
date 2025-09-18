@@ -4,14 +4,17 @@ import { TreePanel } from "./components/TreePanel";
 import { HexPane } from "./components/HexPane";
 import { KsyEditor } from "./components/KsyEditor";
 import { useSessionStore } from "./state/sessionStore";
+import { useShallow } from "zustand/react/shallow";
 
 function StatusBar() {
-  const { selectedRange, fileMeta, buffer, caret } = useSessionStore((state) => ({
-    selectedRange: state.selectedRange,
-    fileMeta: state.fileMeta,
-    buffer: state.buffer,
-    caret: state.caret,
-  }));
+  const { selectedRange, fileMeta, buffer, caret } = useSessionStore(
+    useShallow((state) => ({
+      selectedRange: state.selectedRange,
+      fileMeta: state.fileMeta,
+      buffer: state.buffer,
+      caret: state.caret,
+    })),
+  );
 
   const selectionText = selectedRange
     ? `${selectedRange.start} (+0x${selectedRange.start.toString(16)}) / ${selectedRange.length} bytes`

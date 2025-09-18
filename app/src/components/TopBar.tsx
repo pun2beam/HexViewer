@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useSessionStore } from "../state/sessionStore";
+import { useShallow } from "zustand/react/shallow";
 
 const SAMPLE_HEX = "4865585612340000000000000000000000000000000000000000000000000000";
 const SAMPLE_BYTES = Uint8Array.from(
@@ -41,21 +42,23 @@ export function TopBar() {
     setHexCols,
     fileMeta,
     errors,
-  } = useSessionStore((state) => ({
-    loadFile: state.loadFile,
-    applyKsy: state.applyKsy,
-    undo: state.undo,
-    redo: state.redo,
-    saveSession: state.saveSession,
-    restoreSession: state.restoreSession,
-    setBuffer: state.setBuffer,
-    setKsySource: state.setKsySource,
-    ksySource: state.ksySource,
-    hexCols: state.hexCols,
-    setHexCols: state.setHexCols,
-    fileMeta: state.fileMeta,
-    errors: state.errors,
-  }));
+  } = useSessionStore(
+    useShallow((state) => ({
+      loadFile: state.loadFile,
+      applyKsy: state.applyKsy,
+      undo: state.undo,
+      redo: state.redo,
+      saveSession: state.saveSession,
+      restoreSession: state.restoreSession,
+      setBuffer: state.setBuffer,
+      setKsySource: state.setKsySource,
+      ksySource: state.ksySource,
+      hexCols: state.hexCols,
+      setHexCols: state.setHexCols,
+      fileMeta: state.fileMeta,
+      errors: state.errors,
+    })),
+  );
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
