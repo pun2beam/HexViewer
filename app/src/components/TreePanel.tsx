@@ -16,18 +16,20 @@ function NodeItem({ node, depth }: { node: AstNode; depth: number }) {
 
   return (
     <div className="tree-node" style={{ paddingLeft: depth * 12 }}>
-      {hasChildren && (
-        <button className="tree-node__toggle" onClick={() => setExpanded((prev) => !prev)}>
-          {expanded ? "▼" : "▶"}
+      <div className="tree-node__header">
+        {hasChildren && (
+          <button className="tree-node__toggle" onClick={() => setExpanded((prev) => !prev)}>
+            {expanded ? "▼" : "▶"}
+          </button>
+        )}
+        {!hasChildren && <span className="tree-node__toggle" />}
+        <button
+          className={`tree-node__label ${isSelected ? "tree-node__label--selected" : ""}`}
+          onClick={() => selectNode(node)}
+        >
+          {node.name} <span className="tree-node__type">({node.typeName})</span>
         </button>
-      )}
-      {!hasChildren && <span className="tree-node__toggle" />}
-      <button
-        className={`tree-node__label ${isSelected ? "tree-node__label--selected" : ""}`}
-        onClick={() => selectNode(node)}
-      >
-        {node.name} <span className="tree-node__type">({node.typeName})</span>
-      </button>
+      </div>
       {hasChildren && expanded && (
         <div className="tree-node__children">
           {node.children?.map((child) => (
