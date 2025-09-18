@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AstNode } from "../types";
 import { useSessionStore } from "../state/sessionStore";
 import { useShallow } from "zustand/react/shallow";
@@ -88,6 +88,9 @@ export function TreePanel() {
       selectedNodeId: state.selectedNodeId,
     })),
   );
+  const [treeRatio, setTreeRatio] = useState(0.6);
+  const [isDragging, setIsDragging] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
 
   const selectedNode = useMemo(() => {
     if (!parseResult?.root) return null;
@@ -100,21 +103,63 @@ export function TreePanel() {
     return null;
   }, [parseResult, selectedNodeId]);
 
+  useEffect(() => {
+    if (!isDragging) return;
+
+    function handleMouseMove(event: MouseEvent) {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      const relativeY = event.clientY - rect.top;
+      const ratio = relativeY / rect.height;
+      const clampedRatio = Math.min(Math.max(ratio, 0.2), 0.8);
+      setTreeRatio(clampedRatio);
+    }
+
+    function handleMouseUp() {
+      setIsDragging(false);
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const gridTemplateRows = selectedNode ? `${treeRatio}fr 6px ${1 - treeRatio}fr` : "1fr";
+
   return (
     <section className="tree-panel">
       <h2>構造ツリー</h2>
-      <div className="tree-panel__tree">
-        {parseResult?.root ? (
-          <NodeItem node={parseResult.root} depth={0} />
-        ) : (
-          <p className="tree-panel__empty">ファイルとKSYを読み込むと構造が表示されます。</p>
+      <div
+        ref={splitContainerRef}
+        className={`tree-panel__content${isDragging ? " tree-panel__content--dragging" : ""}`}
+        style={{ gridTemplateRows }}
+      >
+        <div className="tree-panel__tree">
+          {parseResult?.root ? (
+            <NodeItem node={parseResult.root} depth={0} />
+          ) : (
+            <p className="tree-panel__empty">ファイルとKSYを読み込むと構造が表示されます。</p>
+          )}
+        </div>
+        {selectedNode && (
+          <>
+            <div
+              className="tree-panel__divider"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setIsDragging(true);
+              }}
+            />
+            <div className="tree-panel__details">
+              <NodeDetails node={selectedNode} />
+            </div>
+          </>
         )}
       </div>
-      {selectedNode && (
-        <div className="tree-panel__details">
-          <NodeDetails node={selectedNode} />
-        </div>
-      )}
     </section>
   );
 }
