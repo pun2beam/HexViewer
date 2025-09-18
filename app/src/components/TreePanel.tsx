@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import type { AstNode } from "../types";
 import { useSessionStore } from "../state/sessionStore";
+import { useShallow } from "zustand/react/shallow";
 
 function NodeItem({ node, depth }: { node: AstNode; depth: number }) {
-  const { selectedNodeId, selectNode } = useSessionStore((state) => ({
-    selectedNodeId: state.selectedNodeId,
-    selectNode: state.selectNode,
-  }));
+  const { selectedNodeId, selectNode } = useSessionStore(
+    useShallow((state) => ({
+      selectedNodeId: state.selectedNodeId,
+      selectNode: state.selectNode,
+    })),
+  );
   const [expanded, setExpanded] = useState(depth < 2);
   const hasChildren = (node.children?.length ?? 0) > 0;
   const isSelected = selectedNodeId === node.id;
@@ -79,10 +82,12 @@ function NodeDetails({ node }: { node: AstNode }) {
 }
 
 export function TreePanel() {
-  const { parseResult, selectedNodeId } = useSessionStore((state) => ({
-    parseResult: state.parseResult,
-    selectedNodeId: state.selectedNodeId,
-  }));
+  const { parseResult, selectedNodeId } = useSessionStore(
+    useShallow((state) => ({
+      parseResult: state.parseResult,
+      selectedNodeId: state.selectedNodeId,
+    })),
+  );
 
   const selectedNode = useMemo(() => {
     if (!parseResult?.root) return null;

@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useSessionStore } from "../state/sessionStore";
+import { useShallow } from "zustand/react/shallow";
 
 const ROW_HEIGHT = 24;
 const OVERSCAN = 12;
@@ -20,14 +21,14 @@ function isPrintable(byte: number): boolean {
 
 export function HexPane() {
   const { buffer, selectedRange, selectRange, hexCols, editByte, caret } = useSessionStore(
-    (state) => ({
+    useShallow((state) => ({
       buffer: state.buffer,
       selectedRange: state.selectedRange,
       selectRange: state.selectRange,
       hexCols: state.hexCols,
       editByte: state.editByte,
       caret: state.caret,
-    })
+    })),
   );
   const [hexInput, setHexInput] = useState("");
   const [asciiInput, setAsciiInput] = useState("");
