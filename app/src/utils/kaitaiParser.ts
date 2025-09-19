@@ -64,33 +64,190 @@ function getDecoder(encoding: string | undefined): TextDecoder {
   return textDecoderCache.get(enc)!;
 }
 
-function evaluateExpression(
-  expr: number | string | undefined,
+class ExpressionParser {
+  private index = 0;
+
+  constructor(
+    private readonly expr: string,
+    private readonly env: ParseEnv,
+    private readonly ctx: ParseContext
+  ) {}
+
+  parse(): number | undefined {
+    try {
+      const value = this.parseExpression();
+      this.skipWhitespace();
+      if (this.index !== this.expr.length) {
+        return undefined;
+      }
+      return value;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseExpression(): number {
+    let value = this.parseTerm();
+    while (true) {
+      this.skipWhitespace();
+      const op = this.peek();
+      if (op === "+" || op === "-") {
+        this.index++;
+        const rhs = this.parseTerm();
+        value = op === "+" ? value + rhs : value - rhs;
+      } else {
+        break;
+      }
+    }
+    return value;
+  }
+
+  private parseTerm(): number {
+    let value = this.parseUnary();
+    while (true) {
+      this.skipWhitespace();
+      const op = this.peek();
+      if (op === "*" || op === "/") {
+        this.index++;
+        const rhs = this.parseUnary();
+        if (op === "*") {
+          value *= rhs;
+        } else {
+          value /= rhs;
+        }
+      } else {
+        break;
+      }
+    }
+    return value;
+  }
+
+  private parseUnary(): number {
+    this.skipWhitespace();
+    const op = this.peek();
+    if (op === "+" || op === "-") {
+      this.index++;
+      const value = this.parseUnary();
+      return op === "+" ? value : -value;
+    }
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): number {
+    this.skipWhitespace();
+    const ch = this.peek();
+    if (ch === "(") {
+      this.index++;
+      const value = this.parseExpression();
+      this.skipWhitespace();
+      if (this.peek() !== ")") {
+        throw new Error("Unmatched parenthesis");
+      }
+      this.index++;
+      return value;
+    }
+    if (this.isDigit(ch)) {
+      return this.parseNumber();
+    }
+    if (this.isIdentifierStart(ch)) {
+      const identifier = this.parseIdentifier();
+      const resolved = resolveIdentifier(identifier, this.env, this.ctx);
+      if (typeof resolved === "number") {
+        return resolved;
+      }
+    }
+    throw new Error("Unable to parse expression");
+  }
+
+  private parseNumber(): number {
+    const remainder = this.expr.slice(this.index);
+    const match = remainder.match(/^(0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO][0-7]+|[0-9]+)/);
+    if (!match) {
+      throw new Error("Invalid number");
+    }
+    this.index += match[0].length;
+    return Number(match[0]);
+  }
+
+  private parseIdentifier(): string {
+    const start = this.index;
+    while (this.index < this.expr.length) {
+      const ch = this.expr[this.index];
+      if (this.isIdentifierPart(ch) || ch === ".") {
+        this.index++;
+      } else {
+        break;
+      }
+    }
+    return this.expr.slice(start, this.index);
+  }
+
+  private skipWhitespace(): void {
+    while (this.index < this.expr.length && /\s/.test(this.expr[this.index]!)) {
+      this.index++;
+    }
+  }
+
+  private peek(): string | undefined {
+    return this.expr[this.index];
+  }
+
+  private isDigit(ch: string | undefined): ch is string {
+    return ch !== undefined && /[0-9]/.test(ch);
+  }
+
+  private isIdentifierStart(ch: string | undefined): ch is string {
+    return ch !== undefined && /[A-Za-z_$]/.test(ch);
+  }
+
+  private isIdentifierPart(ch: string | undefined): ch is string {
+    return ch !== undefined && /[A-Za-z0-9_$]/.test(ch);
+  }
+}
+
+function resolveIdentifier(
+  identifier: string,
   env: ParseEnv,
   ctx: ParseContext
 ): number | undefined {
-  if (expr === undefined) {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
     return undefined;
   }
-  if (typeof expr === "number") {
-    return expr;
-  }
-  if (/^[-+]?[0-9]+$/.test(expr.trim())) {
-    return Number(expr);
-  }
 
-  const lookupCandidates: string[] = [];
-  const normalized = expr.replace(/\s+/g, "");
-  if (normalized.startsWith("$root.")) {
-    lookupCandidates.push(normalized.slice("$root.".length));
+  const normalized = trimmed.replace(/\s+/g, "");
+  const lookupCandidates = new Set<string>();
+  const rootPrefixes = ["$root.", "_root."];
+  const rootPath = ctx.path[0] ?? env.schema.meta?.id ?? "root";
+
+  const matchedRootPrefix = rootPrefixes.find((prefix) =>
+    normalized.startsWith(prefix)
+  );
+  if (matchedRootPrefix) {
+    const remainder = normalized.slice(matchedRootPrefix.length);
+    if (!remainder) {
+      return undefined;
+    }
+    if (rootPath) {
+      lookupCandidates.add([rootPath, remainder].filter(Boolean).join("."));
+    }
+    lookupCandidates.add(remainder);
   } else {
-    lookupCandidates.push([...ctx.path, normalized].filter(Boolean).join("."));
-    lookupCandidates.push([...ctx.path.slice(0, -1), normalized].filter(Boolean).join("."));
-    lookupCandidates.push(normalized);
+    if (ctx.path.length > 0) {
+      lookupCandidates.add(
+        [...ctx.path, normalized].filter(Boolean).join(".")
+      );
+      lookupCandidates.add(
+        [...ctx.path.slice(0, -1), normalized].filter(Boolean).join(".")
+      );
+    }
+    lookupCandidates.add(normalized);
   }
 
   for (const candidate of lookupCandidates) {
-    if (!candidate) continue;
+    if (!candidate) {
+      continue;
+    }
     if (env.values.has(candidate)) {
       const value = env.values.get(candidate);
       if (typeof value === "number") {
@@ -103,6 +260,22 @@ function evaluateExpression(
     }
   }
   return undefined;
+}
+
+function evaluateExpression(
+  expr: number | string | undefined,
+  env: ParseEnv,
+  ctx: ParseContext
+): number | undefined {
+  if (expr === undefined) {
+    return undefined;
+  }
+  if (typeof expr === "number") {
+    return expr;
+  }
+
+  const parser = new ExpressionParser(expr, env, ctx);
+  return parser.parse();
 }
 
 function resolveScopeValue(path: string, scope: Record<string, unknown>): unknown {
