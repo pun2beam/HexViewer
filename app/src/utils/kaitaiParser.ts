@@ -18,9 +18,14 @@ interface KaitaiType {
   endian?: "le" | "be";
 }
 
+interface KaitaiTypeSwitch {
+  "switch-on": number | string;
+  cases: Record<string, string>;
+}
+
 interface KaitaiField {
   id: string;
-  type?: string;
+  type?: string | KaitaiTypeSwitch;
   size?: number | string;
   encoding?: string;
   repeat?: "expr" | "eos" | "until";
@@ -476,7 +481,8 @@ function parseField(field: KaitaiField, env: ParseEnv, ctx: ParseContext): Parse
     return parseBytes(field, env, subCtx, sizeExpr);
   }
 
-  const builtin = field.type.toLowerCase();
+  const resolvedType = resolveFieldTypeName(field, env, subCtx);
+  const builtin = resolvedType.toLowerCase();
   switch (builtin) {
     case "u1":
       return parseNumeric(field, env, subCtx, 1, false);
@@ -509,8 +515,69 @@ function parseField(field: KaitaiField, env: ParseEnv, ctx: ParseContext): Parse
       return parseBytes(field, env, subCtx, sizeExpr);
     }
     default:
-      return parseCustomType(field, env, subCtx, field.type);
+      return parseCustomType(field, env, subCtx, resolvedType);
   }
+}
+
+function resolveFieldTypeName(
+  field: KaitaiField,
+  env: ParseEnv,
+  ctx: ParseContext
+): string {
+  const { type } = field;
+  if (typeof type === "string") {
+    return type;
+  }
+
+  if (isKaitaiTypeSwitch(type)) {
+    const switchValue = evaluateExpression(type["switch-on"], env, ctx);
+    if (typeof switchValue === "number") {
+      for (const [caseKey, caseType] of Object.entries(type.cases)) {
+        if (caseKey === "_") {
+          continue;
+        }
+        const resolvedCase = resolveSwitchCaseKey(caseKey, env, ctx);
+        if (resolvedCase !== undefined && resolvedCase === switchValue) {
+          return caseType;
+        }
+      }
+    }
+    if ("_" in type.cases) {
+      return type.cases["_"];
+    }
+    throw new Error(`Unable to resolve switch type for field ${field.id}`);
+  }
+
+  throw new Error(`Unsupported type definition for field ${field.id}`);
+}
+
+function resolveSwitchCaseKey(
+  key: string,
+  env: ParseEnv,
+  ctx: ParseContext
+): number | undefined {
+  const trimmed = key.trim();
+  if (!trimmed || trimmed === "_") {
+    return undefined;
+  }
+  const evaluated = evaluateExpression(trimmed, env, ctx);
+  if (typeof evaluated === "number") {
+    return evaluated;
+  }
+  const numeric = Number(trimmed);
+  return Number.isNaN(numeric) ? undefined : numeric;
+}
+
+function isKaitaiTypeSwitch(value: unknown): value is KaitaiTypeSwitch {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  return (
+    "switch-on" in (value as Record<string, unknown>) &&
+    "cases" in (value as Record<string, unknown>) &&
+    typeof (value as { cases: unknown }).cases === "object" &&
+    (value as { cases: unknown }).cases !== null
+  );
 }
 
 function flatten(node: AstNode | null, acc: AstNode[]): void {
