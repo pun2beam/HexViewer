@@ -66,12 +66,15 @@ function getDecoder(encoding: string | undefined): TextDecoder {
 
 class ExpressionParser {
   private index = 0;
+  private readonly expr: string;
+  private readonly env: ParseEnv;
+  private readonly ctx: ParseContext;
 
-  constructor(
-    private readonly expr: string,
-    private readonly env: ParseEnv,
-    private readonly ctx: ParseContext
-  ) {}
+  constructor(expr: string, env: ParseEnv, ctx: ParseContext) {
+    this.expr = expr;
+    this.env = env;
+    this.ctx = ctx;
+  }
 
   parse(): number | undefined {
     try {
