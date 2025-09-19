@@ -19,7 +19,6 @@ doc: |
 seq:
   - id: sig4
     type: u4
-    if: _io.size >= 4
   - id: body
     type:
       switch-on: sig4
@@ -41,12 +40,19 @@ types:
       - id: version
         type: u2
         doc: Container format version (observed 1 or 2 per various notes)
+      - id: header_length
+        type: u4
+      - id: container_info_offset
+        type: u4
+      - id: container_info_length
+        type: u4
+        doc: Container info blob length
       - id: rest
         type: bytes
-        size-eos: true
+        size: "header_length > 18 ? header_length - 18 : 0"
         doc: |
-          Unknown container layout (fragments/entities). Left as raw payload.
-          You can dissect this further once layout is confirmed.
+          Remaining header bytes after the fixed fields above.
+          Layout still unknown; adjust once specification is available.
 
   # ---- Generic Amazon Ion binary ----
   ion_stream:
