@@ -44,9 +44,9 @@ instances:
 types:
   header_section:
     params:
-      container_info_offset
-      container_info_length
-      header_len
+      - id: container_info_offset
+      - id: container_info_length
+      - id: header_len
     seq:
       - id: prefix_area
         type: pre_container_info
