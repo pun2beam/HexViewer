@@ -65,14 +65,14 @@ types:
         type: var_uint
         if: td.len_nibble == 0xE and not td.is_nop
       - id: repr
-        size: _root._calc_repr_size(td.len_nibble, length ? length.value : 0)
+        size: "_root._calc_repr_size(td.len_nibble, length ? length.value : 0)"
         type:
           switch-on: td.type_code
           cases:
             0xB: ion_container_stream   # list
             0x9: ion_container_stream   # sexp
             0xD: ion_struct_stream      # struct
-        if: _root._calc_repr_size(td.len_nibble, length ? length.value : 0) > 0
+        if: "_root._calc_repr_size(td.len_nibble, length ? length.value : 0) > 0"
 
   ion_container_stream:
     seq:
