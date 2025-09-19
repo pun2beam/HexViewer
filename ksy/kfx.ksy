@@ -122,13 +122,13 @@ instances:
     params:
       - id: l_nib
       - id: explicit_len
-    value: (l_nib < 0xE ? l_nib : (l_nib == 0xE ? explicit_len : 0))
+    value: "(l_nib < 0xE ? l_nib : (l_nib == 0xE ? explicit_len : 0))"
 
   _varuint_to_u:
     params:
       - id: arr
     value:
-      (arr.size == 0 ? 0 :
+      "(arr.size == 0 ? 0 :
         (arr[0] & 0x7F) +
         (arr.size > 1 ? (((arr[1] & 0x7F) << 7)) : 0) +
         (arr.size > 2 ? (((arr[2] & 0x7F) << 14)) : 0) +
@@ -139,4 +139,4 @@ instances:
         (arr.size > 7 ? (((arr[7] & 0x7F) << 49)) : 0) +
         (arr.size > 8 ? (((arr[8] & 0x7F) << 56)) : 0) +
         (arr.size > 9 ? (((arr[9] & 0x7F) << 63)) : 0)
-      )
+      )"
