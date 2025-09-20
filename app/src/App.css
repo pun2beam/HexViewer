@@ -356,6 +356,7 @@
 .hex-pane__list--virtual {
   position: relative;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 .hex-pane__empty {
@@ -370,13 +371,14 @@
 
 .hex-row {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-columns: max-content max-content max-content;
   align-items: center;
   column-gap: 1.5rem;
   padding: 0.1rem 0.75rem;
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
   font-size: 0.85rem;
+  min-width: max-content;
 }
 
 .hex-row__offset {
@@ -396,6 +398,7 @@
 .hex-row__ascii {
   justify-content: center;
   justify-items: center;
+  gap: 0.15rem;
 }
 
 .hex-byte,
@@ -405,6 +408,10 @@
   padding: 0.15rem 0.25rem;
   border-radius: 4px;
   color: inherit;
+}
+
+.ascii-byte {
+  padding: 0.15rem 0.15rem;
 }
 
 .hex-byte:hover,
