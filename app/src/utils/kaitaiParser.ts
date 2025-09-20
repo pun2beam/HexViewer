@@ -22,6 +22,23 @@ type ParsedInstance = {
   [key: string]: unknown;
 };
 
+function toCamelCase(name: string): string {
+  const parts = name.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  if (parts.length === 0) {
+    return name;
+  }
+  return parts
+    .map((part, index) => {
+      if (index === 0) {
+        const lower = part.toLowerCase();
+        return lower.charAt(0) + lower.slice(1);
+      }
+      const normalized = part.toLowerCase();
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join("");
+}
+
 type TypeInfo = {
   spec?: KaitaiTypeSpec;
   display: string;
@@ -353,11 +370,15 @@ function buildFields(
   const debugMap = debug ?? {};
 
   for (const field of seq) {
-    const entry = debugMap[field.id];
+    const entryKey = resolveDebugKey(field.id, debugMap);
+    if (!entryKey) {
+      continue;
+    }
+    const entry = debugMap[entryKey];
     if (!entry) {
       continue;
     }
-    const value = instance[field.id];
+    const value = resolveInstanceValue(instance, field.id, entryKey);
 
     if (Array.isArray(value) && Array.isArray(entry.arr)) {
       const parentPath = [...path, field.id];
@@ -410,6 +431,28 @@ function buildFields(
   }
 
   return nodes;
+}
+
+function resolveDebugKey(fieldId: string, debugMap: DebugMap): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(debugMap, fieldId)) {
+    return fieldId;
+  }
+  const camel = toCamelCase(fieldId);
+  if (Object.prototype.hasOwnProperty.call(debugMap, camel)) {
+    return camel;
+  }
+  return undefined;
+}
+
+function resolveInstanceValue(
+  instance: ParsedInstance,
+  originalId: string,
+  resolvedKey: string
+): unknown {
+  if (Object.prototype.hasOwnProperty.call(instance, resolvedKey)) {
+    return instance[resolvedKey];
+  }
+  return instance[originalId];
 }
 
 function collectRangeFromChildren(children: AstNode[], fallbackLength: number): Range {
