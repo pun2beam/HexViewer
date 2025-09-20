@@ -37,6 +37,8 @@ types:
 
   container_info:
     seq:
+      - id: bvm
+        type: u4
       - id: id_container
         -orig-id: d409
         type: ion_value
