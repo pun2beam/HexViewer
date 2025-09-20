@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { type ChangeEvent, useRef } from "react";
 import { useSessionStore } from "../state/sessionStore";
 import { useShallow } from "zustand/react/shallow";
 
@@ -27,6 +27,7 @@ seq:
 
 export function TopBar() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const ksyInputRef = useRef<HTMLInputElement | null>(null);
   const {
     loadFile,
     applyKsy,
@@ -51,7 +52,7 @@ export function TopBar() {
     })),
   );
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     await loadFile(file);
@@ -67,6 +68,18 @@ export function TopBar() {
     applyKsy(SAMPLE_KSY);
   };
 
+  const handleKsyFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setKsySource(text);
+      await applyKsy(text);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   return (
     <header className="top-bar">
       <div className="top-bar__section">
@@ -77,6 +90,14 @@ export function TopBar() {
           type="file"
           style={{ display: "none" }}
           onChange={handleFileChange}
+        />
+        <button onClick={() => ksyInputRef.current?.click()}>KSYを読み込む</button>
+        <input
+          ref={ksyInputRef}
+          type="file"
+          accept=".ksy,.yaml,.yml,text/yaml,application/x-yaml"
+          style={{ display: "none" }}
+          onChange={handleKsyFileChange}
         />
       </div>
       <div className="top-bar__section">
