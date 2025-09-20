@@ -132,8 +132,11 @@ function createModuleCache(files: Record<string, string>): ModuleCache {
 }
 
 function toRange(entry: DebugEntry | undefined): Range {
-  const start = entry?.start ?? 0;
-  const end = entry?.end ?? start;
+  const base = entry?.ioOffset ?? 0;
+  const relativeStart = entry?.start ?? 0;
+  const relativeEnd = entry?.end ?? relativeStart;
+  const start = base + relativeStart;
+  const end = base + relativeEnd;
   const length = Math.max(0, end - start);
   return { start, length };
 }
