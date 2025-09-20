@@ -56,14 +56,14 @@ types:
         type: var_uint
         if: td.len_nibble == 0xE and not td.is_nop
       - id: repr
-        size: "_root._calc_repr_size(td.len_nibble, length ? length.value : 0)"
+        size: "_root.calc_repr_size(td.len_nibble, length ? length.value : 0)"
         type:
           switch-on: td.type_code
           cases:
             0xB: ion_container_stream   # list
             0x9: ion_container_stream   # sexp
             0xD: ion_struct_stream      # struct
-        if: "_root._calc_repr_size(td.len_nibble, length ? length.value : 0) > 0"
+        if: "_root.calc_repr_size(td.len_nibble, length ? length.value : 0) > 0"
 
   ion_container_stream:
     seq:
@@ -106,16 +106,16 @@ types:
         repeat-until: (bytes[-1] & 0x80) == 0
     instances:
       value:
-        value: _root._varuint_to_u(bytes)
+        value: _root.varuint_to_u(bytes)
 
 instances:
-  _calc_repr_size:
+  calc_repr_size:
     params:
       - id: l_nib
       - id: explicit_len
     value: "(l_nib < 0xE ? l_nib : (l_nib == 0xE ? explicit_len : 0))"
 
-  _varuint_to_u:
+  varuint_to_u:
     params:
       - id: arr
     value:
