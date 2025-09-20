@@ -6,38 +6,67 @@ meta:
   ks-version: 0.9
   endian: le
 
-doc: |
-  Best-effort KFX loader:
-    - If file starts with 'PK\x03\x04', parse as ZIP (KFX-ZIP).
-    - If file starts with 'CONT', parse a minimal container stub (unknown exact layout).
-    - Otherwise, parse as Amazon Ion binary stream (common KFX payload).
-
 seq:
-  - id: sig4
-    type: u4
-  - id: body
-    type:
-      switch-on: sig4
-      cases:
-        0x544E4F43: cont_container  # 'CONT'
-        _: ion_stream
-    size-eos: true
+  - id: file_hdr
+    type: file_header
+
+instances:
+  container_stream:
+    pos: ofs_container_info
+    type: container_info
+
 
 types:
-  # ---- Minimal 'CONT' container stub (structure unknown in detail) ----
-  cont_container:
+  file_header:
     seq:
+      - id: file_type
+        contents: "CONT"
       - id: version
         type: u2
         doc: Container format version (observed 1 or 2 per various notes)
-      - id: header_length
+      - id: len_header
         type: u4
-      - id: container_info_offset
+      - id: ofs_container_info
         type: u4
-      - id: container_info_length
+      - id: len_container_info
         type: u4
       - id: rest
-        size: "(header_length > _io.pos ? header_length - _io.pos : 0)"
+        size: "(len_header> _io.pos ? len_header- _io.pos : 0)"
+
+
+  container_info:
+    seq:
+      - id: id_container
+        -orig-id: d409
+        type: ion_value
+      - id: id_compress
+        -orig-id: d410
+        type: ion_value
+      - id: id_drm_s
+        -orig-id: d411
+        type: ion_value
+      - id: len_chank
+        -orig-id: d412
+        type: ion_value
+      - id: ofs_entity_index_table
+        -orig-id: d413
+        type: ion_value
+      - id: len_entity_index_table
+        -orig-id: d414
+        type: ion_value
+      - id: ofs_symbol_table
+        -orig-id: d415
+        type: ion_value
+      - id: len_symbol_table
+        -orig-id: d416
+        type: ion_value
+      - id: ofs_fuction_block
+        -orig-id: d594
+        type: ion_value
+      - id: len_fuction_block
+        -orig-id: d595
+        type: ion_value
+
   # ---- Generic Amazon Ion binary ----
   ion_stream:
     doc: Concatenation of Ion values until EOF.
@@ -123,4 +152,3 @@ types:
           (bytes.size > 8 ? (((bytes[bytes.size - 9] & 0x7F) << 56)) : 0) +
           (bytes.size > 9 ? (((bytes[bytes.size - 10] & 0x7F) << 63)) : 0)
         )"
-
