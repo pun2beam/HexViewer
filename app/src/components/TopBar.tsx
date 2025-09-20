@@ -100,7 +100,6 @@ export function TopBar() {
     <header className="top-bar">
       <div className="top-bar__section">
         <button onClick={() => fileInputRef.current?.click()}>ファイルを開く</button>
-        <button onClick={handleLoadSample}>サンプル読み込み</button>
         <input
           ref={fileInputRef}
           type="file"
@@ -108,6 +107,9 @@ export function TopBar() {
           onChange={handleFileChange}
         />
         <button onClick={() => ksyInputRef.current?.click()}>KSYを読み込む</button>
+        <button onClick={handleDownloadKsy} disabled={!ksySource.trim()}>
+          KSYを書き出す
+        </button>
         <input
           ref={ksyInputRef}
           type="file"
@@ -120,9 +122,7 @@ export function TopBar() {
         <button onClick={() => applyKsy()} disabled={!ksySource.trim()}>
           KSY適用
         </button>
-        <button onClick={handleDownloadKsy} disabled={!ksySource.trim()}>
-          KSYを書き出す
-        </button>
+        <button onClick={handleLoadSample}>サンプル読み込み</button>
         <label>
           Hex列:
           <select value={hexCols} onChange={(e) => setHexCols(Number(e.target.value) as 16 | 24 | 32)}>
