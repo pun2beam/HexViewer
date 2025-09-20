@@ -1,5 +1,5 @@
 import yaml from "js-yaml";
-import { MainJs } from "./kaitai-struct-compiler-js-fastopt.js";
+import KaitaiStructCompiler from "kaitai-struct-compiler";
 
 export interface KaitaiImporter {
   importYaml(name: string, mode: string): Promise<unknown>;
@@ -65,7 +65,7 @@ export async function compileKsySource(
   const schema = parsed as KaitaiSchema;
 
   try {
-    const files = (await MainJs.compile(
+    const files = (await KaitaiStructCompiler.compile(
       "javascript",
       schema,
       importer,
