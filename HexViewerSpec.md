@@ -1,365 +1,161 @@
-# 仕様書：Kaitai Struct バイナリエディタ（Web）
+# HexViewer Web 仕様書
 
-## 0. 用語
-
-* **KSY**：Kaitai Struct のスキーマ（YAML）
-* **パース結果ツリー（AST）**：KSYに基づく各フィールドの階層構造
-* **レンジ**：バイナリ内のオフセット範囲 `[start, end)`（バイト単位）
-* **ノード**：ツリー上の1要素（フィールド／型）
-* **セッション**：ファイル＋適用KSY＋注釈＋ビュー状態の集合
+本書はリポジトリ `app/` 配下で実装されているブラウザ版 HexViewer の現行挙動をまとめたものです。`HexViewer` は Kaitai Struct 形式のスキーマ（KSY）をブラウザ上で読み込み、ローカルの任意バイナリを解析して構造ツリーと Hex ダンプを同期表示するツールです。
 
 ---
 
-## 1. ゴール／非ゴール
+## 1. 目的と非目標
 
-### ゴール
+### 目的
 
-1. 任意バイナリを**ブラウザ内**で読み込み、指定KSYで解析してツリー表示。
-2. ツリー選択⇔ダンプ強調を**双方向同期**。
-3. バイナリの**編集（16進/ASCII）→差分再パース**、Undo/Redo。
-4. 巨大ファイル（～数百MB）で**スクロール60fps級**の快適さ。
-5. スキーマの切替、複数スキーマの候補適用、バージョン管理。
-6. 注釈（コメント・タグ・色）と**セッション保存/復元**。
+1. ローカルファイルまたはサンプルバイナリを読み込み、ブラウザ内で完結して解析する。
+2. YAML 形式の KSY を入力し、その場で Kaitai Struct Compiler を呼び出してパーサを生成する。
+3. 解析結果の AST（構造ツリー）と Hex/ASCII ダンプを双方向に同期させて閲覧する。
+4. 解析結果のメタ情報（値、オフセット、属性など）をノード詳細として確認する。
+5. Hex 表示の列数やジャンプ操作など、閲覧に必要な最小限のビュー調整を提供する。
 
-### 非ゴール（初期版）
+### 非目標（2025-02 現在）
 
-* 圧縮形式の自動展開（.zip/.gzなど）は後続拡張。
-* 逆アセンブリ/デコンパイルは対象外。
-* ネットワーク越しのサーバ実行は行わず**完全ローカル**（PWA化は将来対応）。
-
----
-
-## 2. ユースケース（抜粋）
-
-* UC-01：ユーザがバイナリをドラッグ&ドロップ→KSY選択→解析→閲覧。
-* UC-02：ツリーで`header.magic`をクリック→右ペインで該当4バイトが強調。
-* UC-03：右ペインで範囲選択→該当するノードが自動ハイライト（複数候補はリスト）。
-* UC-04：バイトを書き換え→差分再パース→ツリーの該当部分のみ更新。
-* UC-05：特定オフセットに注釈・色付け→セッションに保存。
-* UC-06：KSYを編集（内蔵エディタ）→ホットリロード→再パース。
-* UC-07：検索（パターン/文字列/ノード名/Enum値）でヒット箇所巡回。
+* Hex/ASCII の直接編集、差分再パース、Undo/Redo は未実装。
+* Web Worker や SharedArrayBuffer を用いたマルチスレッド処理は未導入。解析はメインスレッドで行われる。
+* 注釈・ブックマーク・セッション書き出しなどの永続化 UI は未実装（データモデルのみ存在）。
+* `repeat` や `switch` などの基本構文は扱うが、Kaitai Struct の全機能（`instances` の値追跡、`io` の切替等）を完全にはサポートしない。
+* 巨大ファイルに対するパフォーマンス保証（60fps など）は将来課題。
 
 ---
 
-## 3. UI/UX 仕様
+## 2. ユースケース
 
-### 3.1 レイアウト
-
-* **左ペイン（幅可変、デフォ40%）**：
-
-  * 構造ツリー（折り畳み／フィルタ／ノード検索）
-  * ノード詳細（型・サイズ・エンディアン・値表示・Enum/Flagsの意味）
-  * KSYエディタ（タブ）／スキーマギャラリー
-* **右ペイン（幅可変、デフォ60%）**：
-
-  * バイナリダンプ（Hex + ASCII、**行長16/24/32切替**）
-  * 強調表示（選択ノード色・ホバー色・注釈色のレイヤ合成）
-  * 編集（上書き/挿入/削除は設定で制約可）
-  * 検索バー（Hex/ASCII/正規表現/バイトパターン）
-* **上部バー**：ファイル操作、KSY選択、再パース、Undo/Redo、セッション保存/読込、設定
-* **下部ステータス**：カーソルオフセット、選択長、エンディアン、ファイルサイズ、パース時間
-
-### 3.2 操作
-
-* クリック：ツリー⇔ダンプ相互選択、シングルクリックでノード/レンジ選択
-* ドラッグ：ダンプ範囲選択（シフトで拡張）、スクロールは仮想化
-* ホバー：ツールチップ（ノード名・型・サイズ・オフセット）
-* コンテキストメニュー：ジャンプ、固定マーク（Pin）、注釈、ブックマーク、可視範囲にズーム
-* キーバインド（例）：
-
-  * `Ctrl+O` 取込、`Ctrl+S` セッション保存、`Ctrl+F` 検索、`Ctrl+Z/Y` Undo/Redo
-  * `F` 選択フィット、`G` オフセットジャンプ、`[`/`]` 隣接ノードへ
-
-### 3.3 表示・アクセシビリティ
-
-* カラースキーム：ライト/ダーク、色弱配慮パレット
-* フォント：等幅（ASCII部）、サイズ変更（90–160%）
-* キーボード操作完備とARIA属性付与
+* バイナリファイルを開き、既存の KSY を貼り付けて解析結果を確認する。
+* サンプルデータとサンプル KSY を読み込み、機能をすぐに試す。
+* 構造ツリーでフィールドを選択し、Hex ダンプ側で対応範囲を確認する。
+* Hex ダンプ側で任意バイトをクリックし、そのバイトをカバーする最小ノードを特定する。
+* バイトオフセットを 16 進／10 進で入力し、該当位置にジャンプする。
 
 ---
 
-## 4. データモデル（TypeScript）
+## 3. UI レイアウト
 
-```ts
-type ByteOffset = number;       // 0-based
-type ByteLength = number;
-
-interface Range { start: ByteOffset; length: ByteLength } // [start, start+length)
-
-interface AstNodeId = string;   // "type.header.magic" 等の安定識別子
-
-interface AstNode {
-  id: AstNodeId;
-  name: string;                 // KSY側のid
-  typeName: string;             // u4 / str / custom type
-  range: Range;
-  endian?: "le" | "be";
-  value?: unknown;              // 既知型は整形値を格納
-  children?: AstNode[];
-  attributes?: Record<string, unknown>; // enum名/flags/if式の評価など
-  errors?: ParseError[];
-}
-
-interface ParseResult {
-  root: AstNode;
-  indexByOffset: IntervalIndex<AstNodeId>; // Range→Nodeのインデックス
-  warnings: string[];
-  errors: ParseError[];
-}
-
-interface Annotation {
-  id: string;
-  range: Range;
-  color?: string;      // CSS color
-  label?: string;
-  note?: string;
-  tags?: string[];
-  createdAt: number;
-}
-
-interface Session {
-  fileMeta: { name: string; size: number; sha256: string };
-  ksySource: string;            // 現在のKSY（生）、または参照URL＋バージョン
-  viewState: { hexCols: 16|24|32; caret: ByteOffset; zoom?: Range };
-  annotations: Annotation[];
-  edits: EditOp[];              // 適用済み差分ログ
-}
-
-type EditOp =
-  | { kind: "overwrite"; at: ByteOffset; data: Uint8Array }
-  | { kind: "insert"; at: ByteOffset; data: Uint8Array }
-  | { kind: "delete"; at: ByteOffset; length: ByteLength };
+```
+┌──────────────────────────────────────────────┐
+│ TopBar：ファイル操作／KSY 適用／Hex 列数切替                        │
+├───────────────┬───────────────────────────────┤
+│ 左ペイン                                   │ 右ペイン                 │
+│  ├ TreePanel：構造ツリー＋ノード詳細       │  HexPane：Hex/ASCII 表示 │
+│  └ KsyEditor：KSY テキストエリア            │  （スクロール仮想化＋ジャンプ）│
+├──────────────────────────────────────────────┤
+│ StatusBar：ファイルサイズ／カーソル／選択範囲／バッファ状況           │
+└──────────────────────────────────────────────┘
 ```
 
+### TopBar
+
+* 「ファイルを開く」：`<input type="file">` をラップ。選択後 `loadFile` アクションを実行。
+* 「サンプル読み込み」：ハードコードされた 32 バイトのサンプルバッファと簡易 KSY を適用。【F:app/src/components/TopBar.tsx†L34-L64】【F:app/src/components/TopBar.tsx†L66-L105】
+* 「KSY 適用」：現在のテキストを `applyKsy` に渡す。空文字列のときは disabled。【F:app/src/components/TopBar.tsx†L68-L87】
+* Hex 列数切替：16/24/32 を `<select>` で切替え、Zustand ストアの `hexCols` を更新。【F:app/src/components/TopBar.tsx†L88-L101】
+* メタ表示：読み込んだファイル名とサイズ、最新の解析エラー 1 件を表示。【F:app/src/components/TopBar.tsx†L102-L110】
+
+### 左ペイン
+
+* TreePanel：AST をネストしたリストとして描画。階層ごとに折り畳み可能。ノードをクリックすると選択状態がストアに反映され、対応レンジが HexPane に通知される。【F:app/src/components/TreePanel.tsx†L1-L74】【F:app/src/components/TreePanel.tsx†L101-L140】
+* ノード詳細：選択中ノードの型名、オフセット、長さ、値、属性を整形表示。【F:app/src/components/TreePanel.tsx†L40-L72】
+* KSY エディタ：Monaco 等は使わず、`<textarea>` によるシンプルな入力欄。ストアの `ksySource` を双方向バインド。【F:app/src/components/KsyEditor.tsx†L1-L20】
+
+### 右ペイン（HexPane）
+
+* スクロール仮想化：1 行 24px、高さ計算による単純な仮想リストでレンダリングコストを抑制。【F:app/src/components/HexPane.tsx†L12-L68】【F:app/src/components/HexPane.tsx†L133-L169】
+* Hex/ASCII 列：同一行に Hex と ASCII を並べ、ボタンとして表示。クリックで指定バイトを `selectRange` に渡し、長さ 1 のレンジを選択する。【F:app/src/components/HexPane.tsx†L170-L215】
+* 選択ハイライト：選択レンジとキャレットをクラスで装飾し、Hex/ASCII 双方に反映。【F:app/src/components/HexPane.tsx†L175-L215】
+* アドレスジャンプ：16 進／10 進のラジオボタンで入力基数を切替。バリデーション後、対象行へスクロール。【F:app/src/components/HexPane.tsx†L70-L132】
+* ステータス表示：現在の選択範囲を `選択: start - end (length bytes)` 形式で表示。【F:app/src/components/HexPane.tsx†L115-L132】
+
+### StatusBar
+
+ファイルサイズ、キャレット位置、選択レンジ、バッファ長を表示。【F:app/src/App.tsx†L11-L37】
+
 ---
 
-## 5. 同期仕様（選択・強調の双方向）
+## 4. データモデル
 
-* **選択の単一ソース**：`SelectionState = { nodeId?: AstNodeId; range?: Range }`
-* 左→右：ツリーで`nodeId`変更→`range`をルックアップ→右ペイン強調・オートスクロール。
-* 右→左：ダンプで`range`選択→`indexByOffset.query(range)`で最小被覆ノード群を取得→最も深いノードを選択、候補はポップアップで切替可能。
-* 同期遅延：UI応答性のため**50–75ms**デバウンス。
+TypeScript 型は `app/src/types.ts` に定義される。【F:app/src/types.ts†L1-L48】
+
+* `Range`：`{ start, length }`。選択レンジやノード範囲の基本単位。
+* `AstNode`：ノード ID・名前・型名・レンジ・値・属性・子ノードを保持。`parseWithKsy` が `_debug` 情報から生成する。
+* `ParseResult`：ルートノード、平坦化済みノード配列、警告・エラー配列を含む。
+* `Annotation`／`SessionData`：将来的な注釈・セッション保存用に定義されているが UI は未実装。
+
+---
+
+## 5. ステート管理
+
+Zustand（`persist` ミドルウェア付き）で単一ストアを構築する。【F:app/src/state/sessionStore.ts†L1-L32】
+
+主なアクション：
+
+* `loadFile(file)`：`File` を `ArrayBuffer` に読み込み、SHA-256 を計算してメタ情報を構築。完了後 `setBuffer` を呼び出す。【F:app/src/state/sessionStore.ts†L34-L60】
+* `setBuffer(data, meta)`：バッファをクローンしてストアに保存。KSY が入力済みの場合は自動で `applyKsy` を再実行する。【F:app/src/state/sessionStore.ts†L62-L75】
+* `setKsySource(source)`：KSY テキスト更新のみ。【F:app/src/state/sessionStore.ts†L77-L80】
+* `applyKsy(source?)`：最新の KSY とバッファから `parseWithKsy` を呼び出す。成功時はルートノードを初期選択とし、失敗時は `errors` にメッセージを格納。【F:app/src/state/sessionStore.ts†L82-L130】
+* `selectNode(node)`：ノード選択に応じて `selectedRange` と `caret` を更新。【F:app/src/state/sessionStore.ts†L132-L142】
+* `selectRange(range)`：レンジ選択に応じて最小包含ノードを探索し、`selectedNodeId` を更新。探索は `flatNodes` の線形フィルタと長さ昇順ソートによる単純実装。【F:app/src/state/sessionStore.ts†L144-L167】
+* `setHexCols(cols)`：Hex 表示列数の更新。【F:app/src/state/sessionStore.ts†L169-L169】
+* `editByte`：1 バイト上書き後に再パースを試みるロジックがあるが、UI からはまだ呼び出されない。【F:app/src/state/sessionStore.ts†L171-L188】
+
+`persist` の設定により、`ksySource` と `hexCols` をローカルストレージへ保存する。【F:app/src/state/sessionStore.ts†L190-L198】
 
 ---
 
 ## 6. 解析エンジン
 
-### 6.1 技術選択
+`parseWithKsy` は以下の手順で AST を生成する。【F:app/src/utils/kaitaiParser.ts†L1-L214】【F:app/src/utils/kaitaiParser.ts†L215-L334】【F:app/src/utils/kaitaiParser.ts†L335-L466】【F:app/src/utils/kaitaiParser.ts†L467-L540】
 
-* **Kaitai Struct Compiler** で KSY → JS/TS（またはWebAssembly）へコンパイル。
-* **kaitai-struct-runtime**（JS）をバンドル。
-* 解析実行は **Web Worker**（別スレッド）で実施し、UIはノンブロッキング。
-* 大容量対応のため入力は **SharedArrayBuffer** / **File.slice()** / **Blob.stream()** を活用。
+1. `compileKsySource` で KSY を Kaitai Struct Compiler に渡し、JavaScript モジュール群を生成。
+2. AMD 形式のコードを動的ロードするため、簡易モジュールローダ（`createModuleCache`）を実装。
+3. 生成された Root クラスに `KaitaiStream` を渡してパースし、各 `_debug` 情報からノード範囲を抽出。
+4. `buildFields` と `buildNode` で AST を再帰的に構築。`repeat` 配列は親ノードとしてまとめ、子要素を `field.id[index]` 形式で表現。
+5. ノード値はプリミティブ・配列のみを保持し、複合オブジェクトは `_debug` ベースで子ノードへ展開。
+6. 生成したツリーを `flatten` で一次配列化し、`selectRange` からの逆引きに利用。
 
-### 6.2 差分再パース
+エラーハンドリング：
 
-* 編集ログ（`EditOp[]`）を適用した**仮想バッファ層**でReaderを構成。
-* ノードの依存性を`range`単位で管理し、編集レンジと交差する**最小サブツリー**のみ再パース。
-* それ以外はパース結果をキャッシュ再利用。
-* フィールド長がヘッダ等に依存する場合は**上位ノード**も巻き戻し対象。
-
-### 6.3 エラーハンドリング
-
-* 解析時例外はノードに`errors`を集約。UIは該当レンジを赤ハッチ表示。
-* 致命エラー（magic不一致等）は**代替KSYの提案**（ギャラリー候補）をUIで提示。
+* KSY コンパイル時の例外は `KaitaiCompilationError` にラップし、コンパイラが返す `CompilationProblem` から座標等を抽出してメッセージ整形。【F:app/src/utils/kaitaiParser.ts†L467-L540】
+* パース例外（ルートクラス未生成、`_read` 内のエラー等）は `ParseResult.errors` に反映。
 
 ---
 
-## 7. バイナリダンプ（Hexビュー）
+## 7. Kaitai Struct Compiler の取得方法
 
-* **仮想スクロール**：可視範囲のみCanvas描画（1行＝オフセット＋Hex群＋ASCII）。
-* **行長**：16/24/32列、行頭のオフセット表記は 8/16桁切替。
-* **強調レイヤ**：
-
-  1. 選択ノード色、2) ホバー、3) 注釈、4) 検索ヒット、5) 変更済み（dirty）
-     レイヤは優先順位＋αブレンドで合成。
-* **編集モード**：
-
-  * Hex側：`[0-9A-Fa-f]`2桁で1バイト上書き。
-  * ASCII側：制御文字は`.`表示、入力は対応バイトに反映。
-  * **挿入/削除**はコマンド（メニュー/ショートカット）で発動、可否は設定制御。
-* **ジャンプ**：オフセット直指定・相対（`+0x100`）・ノードへジャンプ。
+* 公式 npm パッケージ `kaitai-struct-compiler@0.11.0` を依存関係として追加し、Vite によってバンドルしている。【F:app/package.json†L14-L21】【F:app/package-lock.json†L2593-L2604】
+* ソースコードでは `import KaitaiStructCompiler from "kaitai-struct-compiler";` として読み込み、`KaitaiStructCompiler.compile("javascript", schema, importer, true)` を実行するだけで、追加ビルドステップは不要。【F:app/src/utils/kaitaiCompiler.ts†L1-L44】
+* これにより Kaitai Struct Compiler の Java 実装を wasm 化した公式ビルドをそのまま利用しており、リポジトリ内で独自ビルドやパッチは行っていない。必要なのは `npm install` で依存を取得することのみである。
 
 ---
 
-## 8. スキーマ（KSY）管理
+## 8. ファイル入出力とメタデータ
 
-* **読み込み**：ローカル（drag\&drop / ファイル選択）、URL、内蔵ギャラリー。
-* **編集**：左ペインのKSYタブにMonaco Editorを内蔵（YAML構文強調・スキーマ補助）。
-* **検証**：保存時に KSY 構文チェック→コンパイル→ホットリロード。
-* **バージョン**：セッションに KSY のハッシュ/メタデータを保存。
-* **複数候補**：`magic`やサイズなどの簡易判定で候補を提示、ユーザ選択で適用。
+* バッファ読み込み時に Web Crypto API で SHA-256 を計算し、`SessionFileMeta` として保持。【F:app/src/state/sessionStore.ts†L42-L56】
+* `StatusBar` にはファイルサイズ・カーソル位置・選択範囲・バッファ長を表示し、現在の解析状況を把握できる。【F:app/src/App.tsx†L11-L37】
+* セッション保存の UI は無いが、型定義と状態に `annotations` や `caret` が用意されており、将来拡張を想定している。【F:app/src/state/sessionStore.ts†L10-L23】【F:app/src/types.ts†L25-L48】
 
 ---
 
-## 9. 検索・可視化
+## 9. 既知の制限
 
-* **バイト検索**：Hexパターン / ASCII / 正規表現 / ワイルドカード（`??`=1byte任意）
-* **ノード検索**：名前・型・Enum名・値（例：`header.version=3`）
-* **データ型ビューワ**：
-
-  * 整数（符号/エンディアン切替、10/16進表示）
-  * 浮動小数（単/倍精度）
-  * 文字列（エンコーディング：ASCII/UTF-8/Shift\_JIS 等）
-  * 日付時刻（UNIX epoch/FILETIME等）
-* **可視化補助**：範囲に「ルーラー」「ブロック境界」「パディング位置」を重ね描画。
+* HexPane の仮想スクロールは単純な絶対配置のため、数十 MB を超える巨大ファイルではスクロール位置の浮動小数誤差が発生する可能性がある。
+* `_debug` 情報に依存しているため、KSY で `debug: false` が設定された場合は AST の構築が行えない。
+* `repeat-until` のような条件付きループは `_debug` の配列情報が揃っている場合のみ対応できる。
+* 解析処理がメインスレッドで同期実行されるため、大きなファイルや複雑なスキーマを扱うと UI がブロックされる。
+* 現状の UI からは `editByte` が呼ばれず、Hex/ASCII の表示は参照専用となる。
 
 ---
 
-## 10. 永続化・インポート/エクスポート
+## 10. ビルドと開発
 
-* **セッション保存**：`*.kssession.json`
+* 依存関係のインストール：`npm install`
+* 開発サーバ：`npm run dev` → `http://localhost:5173/`
+* ビルド：`npm run build`
+* Lint：`npm run lint`
 
-  * `fileMeta`（sha256, size, name）, `ksySource` or `ksyUrl+hash`, `annotations`, `edits`, `viewState`
-* **書き出し**：
+これらのコマンドは `app/README.md` にも記載されている。【F:app/README.md†L15-L38】
 
-  * 編集後バイナリ（`*.bin`）
-  * 選択範囲の抽出（`range.bin`）
-  * ツリー/ノード一覧（CSV/JSON）
-* **読み込み検証**：`sha256`一致チェック（異なる場合は警告＋継続可）。
-
----
-
-## 11. 性能要件
-
-* 100MBファイルで
-
-  * 初回パース：< 2s（PCクラス、Worker/Wasmtime/差分無効時の目安）
-  * スクロール：> 55fps（可視域のみCanvas描画、1フレーム<16ms）
-  * 差分再パース：小規模編集で < 200ms
-* メモリ：バッファ複製を避け、**零コピー参照**（ArrayBufferスライス/SharedArrayBuffer）を優先。
-
----
-
-## 12. セキュリティ/プライバシ
-
-* すべてローカル（ブラウザ）で完結。外部送信なし。
-* PWA対応（将来）：オフラインで動作、キャッシュ制御厳格化。
-* KSYの`pos`/`process`等で無限ループの危険を抑制（**ガード：最大反復回数・最大深度**）。
-
----
-
-## 13. 拡張点（プラグインAPI 概要）
-
-```ts
-interface Plugin {
-  id: string;
-  contributes?: {
-    nodePanels?: Array<(node: AstNode, ctx: PluginCtx) => ReactNode>;
-    commands?: Array<{ id: string; title: string; run(ctx: PluginCtx): Promise<void> }>;
-    detectSchemas?: Array<(fileMeta, buffer) => Promise<KsyCandidate[]>>;
-  };
-}
-```
-
-* 例：CRC計算器、可視化（波形/画像プレビュー）、暗号鍵推定、圧縮展開支援など。
-
----
-
-## 14. イベント/IPC（UI ⇄ Worker）
-
-```ts
-// UI -> Worker
-type MsgToWorker =
-  | { t: "LOAD_FILE"; buf: SharedArrayBuffer; meta: FileMeta }
-  | { t: "APPLY_KSY"; ksy: string }
-  | { t: "REPARSE_DIFF"; edits: EditOp[] }
-  | { t: "QUERY_RANGE"; range: Range }
-  | { t: "CANCEL"; token: string };
-
-// Worker -> UI
-type MsgFromWorker =
-  | { t: "PARSE_DONE"; result: ParseResult; timeMs: number }
-  | { t: "PROGRESS"; phase: "compile"|"parse"; pct: number }
-  | { t: "ERROR"; message: string; nodePath?: string }
-  | { t: "RANGE_OWNERS"; owners: AstNodeId[] };
-```
-
-* 複数同時要求に備え**token**でキャンセル制御。
-
----
-
-## 15. テスト計画
-
-* **ユニット**：KSYコンパイル、差分再パース、IntervalIndex、Hex描画器。
-* **スナップショット**：代表的フォーマット（PNG/ELF/RIFF/ISOBMFF）でAST一致性。
-* **プロパティテスト**：編集→Undo/Redo→再パースでASTの整合維持。
-* **パフォ計測**：Lighthouse＋customベンチ、長尺ファイルでfps/遅延記録。
-
----
-
-## 16. 技術スタック（提案）
-
-* **言語/フレームワーク**：TypeScript、React（またはSolid）
-* **描画**：Canvas 2D（Hexビュー専用レンダラ）
-* **コードエディタ**：Monaco（KSY/JSON）
-* **ビルド**：Vite
-* **解析**：kaitai-struct-compiler（事前/動的）、kaitai JS runtime、Web Worker
-* **状態管理**：Zustand/Redux Toolkit いずれか
-* **永続化**：IndexedDB（セッション/KSYキャッシュ）
-* **暗号**：SubtleCrypto(SHA-256)
-
----
-
-## 17. 画面フロー（初期版）
-
-1. 起動 → ウェルカム画面（最近のセッション・KSYギャラリー）
-2. ファイル投入 → KSY選択/自動推奨 → 解析進捗バー → エディタ画面
-3. ツリー操作・検索・編集 → 注釈 → セッション保存 or 書き出し
-
----
-
-## 18. 初期リリースのMVP範囲
-
-* 読み込み / KSY適用 / ツリー⇔ダンプ同期 / 上書き編集 / Undo/Redo / 検索 / セッション保存
-* 差分再パース（上位ノード巻戻し含む基本形）
-* 注釈・ブックマーク・ライト/ダークテーマ
-
-**次期**：挿入/削除、プラグイン、画像/波形プレビュー、PWA、複数ファイルの相互参照、圧縮対応。
-
----
-
-## 19. 受け入れ基準（抜粋）
-
-* 100MBのELF/MP4でスクロールがカクつかない（60fpsに近い体感）。
-* `header.magic`クリックで 100ms以内に該当レンジへスムーズスクロール＆強調。
-* 2バイト上書き→200ms以内に該当サブツリーが更新。
-* セッション保存→復元でビュー状態・注釈が再現。
-* 解析失敗時、UIが落ちずにエラーノードを指し示す。
-
----
-
-## 20. 付録：KSY最小例（再掲・微修正版）
-
-```yaml
-meta:
-  id: my_container
-  endian: be
-seq:
-  - id: header
-    type: header
-  - id: container
-    type: container
-    pos: header.container_ofs
-types:
-  header:
-    seq:
-      - id: magic
-        type: str
-        size: 4
-        encoding: ASCII
-      - id: header_len
-        type: u4
-      - id: container_ofs
-        type: u4
-      - id: reserved
-        size: 8
-  container:
-    seq:
-      - id: kind
-        type: u4
-      - id: data_len
-        type: u4
-      - id: data
-        size: data_len
-```
