@@ -327,6 +327,36 @@
   font-size: 0.95rem;
 }
 
+.hex-pane__jump {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hex-pane__jump-format {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hex-pane__jump-format label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hex-pane__jump input[type="text"] {
+  width: 6rem;
+  text-transform: uppercase;
+}
+
+.hex-pane__jump-error {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-top: -0.25rem;
+  align-self: flex-end;
+}
+
 .hex-pane__editor {
   display: flex;
   align-items: center;
