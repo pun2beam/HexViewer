@@ -1,13 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type {
-  Annotation,
-  AstNode,
-  ParseResult,
-  Range,
-  SessionData,
-  SessionFileMeta,
-} from "../types";
+import type { Annotation, AstNode, ParseResult, Range, SessionFileMeta } from "../types";
 import { parseWithKsy } from "../utils/kaitaiParser";
 
 interface SessionState {
@@ -20,8 +13,6 @@ interface SessionState {
   caret: number | null;
   selectedNodeId: string | null;
   selectedRange: Range | null;
-  history: Uint8Array[];
-  future: Uint8Array[];
   isParsing: boolean;
   parseToken: symbol | null;
   errors: string[];
@@ -33,10 +24,6 @@ interface SessionState {
   selectRange: (range: Range | null) => void;
   setHexCols: (cols: 16 | 24 | 32) => void;
   editByte: (offset: number, value: number) => void;
-  undo: () => void;
-  redo: () => void;
-  saveSession: () => SessionData | null;
-  restoreSession: (session: SessionData) => Promise<void>;
 }
 
 async function hashBuffer(buffer: ArrayBuffer): Promise<string> {
@@ -61,8 +48,6 @@ export const useSessionStore = create<SessionState>()(
       caret: null,
       selectedNodeId: null,
       selectedRange: null,
-      history: [],
-      future: [],
       isParsing: false,
       errors: [],
       parseToken: null,
@@ -80,7 +65,7 @@ export const useSessionStore = create<SessionState>()(
 
       setBuffer: async (data: Uint8Array, meta?: SessionFileMeta | null) => {
         const cloned = cloneBuffer(data);
-        set({ buffer: cloned, fileMeta: meta ?? get().fileMeta, history: [], future: [] });
+        set({ buffer: cloned, fileMeta: meta ?? get().fileMeta });
         if (get().ksySource.trim()) {
           await get().applyKsy();
         } else {
@@ -176,75 +161,9 @@ export const useSessionStore = create<SessionState>()(
         const clamped = value & 0xff;
         const newBuffer = cloneBuffer(buffer);
         newBuffer[offset] = clamped;
-        set((state) => ({ history: [...state.history, cloneBuffer(buffer)], future: [] }));
         set({ buffer: newBuffer });
         if (get().ksySource.trim()) {
           void get().applyKsy();
-        }
-      },
-
-      undo: () => {
-        const history = get().history;
-        if (history.length === 0) return;
-        const buffer = get().buffer;
-        const prev = history[history.length - 1];
-        set({
-          buffer: cloneBuffer(prev),
-          history: history.slice(0, -1),
-          future: buffer ? [cloneBuffer(buffer), ...get().future] : get().future,
-        });
-        if (get().ksySource.trim()) {
-          void get().applyKsy();
-        }
-      },
-
-      redo: () => {
-        const future = get().future;
-        if (future.length === 0) return;
-        const buffer = get().buffer;
-        const next = future[0];
-        set({
-          buffer: cloneBuffer(next),
-          future: future.slice(1),
-          history: buffer ? [...get().history, cloneBuffer(buffer)] : get().history,
-        });
-        if (get().ksySource.trim()) {
-          void get().applyKsy();
-        }
-      },
-
-      saveSession: () => {
-        const { buffer, fileMeta, ksySource, annotations, hexCols, caret } = get();
-        if (!buffer) return null;
-        const session: SessionData = {
-          fileMeta,
-          bufferBase64: btoa(String.fromCharCode(...buffer)),
-          ksySource,
-          annotations,
-          viewState: {
-            hexCols,
-            caret,
-          },
-        };
-        return session;
-      },
-
-      restoreSession: async (session: SessionData) => {
-        const buffer = session.bufferBase64
-          ? Uint8Array.from(atob(session.bufferBase64), (c) => c.charCodeAt(0))
-          : null;
-        set({
-          buffer,
-          fileMeta: session.fileMeta ?? null,
-          ksySource: session.ksySource ?? "",
-          annotations: session.annotations ?? [],
-          hexCols: session.viewState.hexCols ?? 16,
-          caret: session.viewState.caret ?? null,
-          history: [],
-          future: [],
-        });
-        if (buffer && session.ksySource) {
-          await get().applyKsy(session.ksySource);
         }
       },
     }),
