@@ -66,7 +66,7 @@ types:
 
     instances:
       repr_size:
-        value: "(td.len_nibble < 0xE ? td.len_nibble : (td.len_nibble == 0xE ? (length ? length.value : 0) : 0))"
+        value: "(td.len_nibble < 0xE ? td.len_nibble : (td.len_nibble == 0xE ? ((length != null) ? length.value : 0) : 0))"
 
   ion_container_stream:
     seq:
