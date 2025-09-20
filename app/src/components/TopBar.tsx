@@ -27,14 +27,9 @@ seq:
 
 export function TopBar() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const sessionInputRef = useRef<HTMLInputElement | null>(null);
   const {
     loadFile,
     applyKsy,
-    undo,
-    redo,
-    saveSession,
-    restoreSession,
     setBuffer,
     setKsySource,
     ksySource,
@@ -46,10 +41,6 @@ export function TopBar() {
     useShallow((state) => ({
       loadFile: state.loadFile,
       applyKsy: state.applyKsy,
-      undo: state.undo,
-      redo: state.redo,
-      saveSession: state.saveSession,
-      restoreSession: state.restoreSession,
       setBuffer: state.setBuffer,
       setKsySource: state.setKsySource,
       ksySource: state.ksySource,
@@ -64,28 +55,6 @@ export function TopBar() {
     const file = event.target.files?.[0];
     if (!file) return;
     await loadFile(file);
-  };
-
-  const handleSessionSave = () => {
-    const session = saveSession();
-    if (!session) return;
-    const blob = new Blob([JSON.stringify(session, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${session.fileMeta?.name ?? "session"}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleSessionLoad = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    const session = JSON.parse(text);
-    await restoreSession(session);
   };
 
   const handleLoadSample = async () => {
@@ -122,18 +91,6 @@ export function TopBar() {
             <option value={32}>32</option>
           </select>
         </label>
-        <button onClick={undo}>Undo</button>
-        <button onClick={redo}>Redo</button>
-      </div>
-      <div className="top-bar__section">
-        <button onClick={handleSessionSave}>セッション保存</button>
-        <button onClick={() => sessionInputRef.current?.click()}>セッション読込</button>
-        <input
-          ref={sessionInputRef}
-          type="file"
-          style={{ display: "none" }}
-          onChange={handleSessionLoad}
-        />
       </div>
       <div className="top-bar__meta">
         {fileMeta ? (

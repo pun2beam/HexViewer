@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionStore } from "../state/sessionStore";
 import { useShallow } from "zustand/react/shallow";
 
@@ -20,32 +14,18 @@ function isPrintable(byte: number): boolean {
 }
 
 export function HexPane() {
-  const { buffer, selectedRange, selectRange, hexCols, editByte, caret } = useSessionStore(
+  const { buffer, selectedRange, selectRange, hexCols, caret } = useSessionStore(
     useShallow((state) => ({
       buffer: state.buffer,
       selectedRange: state.selectedRange,
       selectRange: state.selectRange,
       hexCols: state.hexCols,
-      editByte: state.editByte,
       caret: state.caret,
     })),
   );
-  const [hexInput, setHexInput] = useState("");
-  const [asciiInput, setAsciiInput] = useState("");
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!buffer || caret === null) {
-      setHexInput("");
-      setAsciiInput("");
-      return;
-    }
-    const byte = buffer[caret];
-    setHexInput(formatHex(byte));
-    setAsciiInput(isPrintable(byte) ? String.fromCharCode(byte) : ".");
-  }, [buffer, caret]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -78,18 +58,6 @@ export function HexPane() {
     [selectRange]
   );
 
-  const commitHexEdit = useCallback(() => {
-    if (caret === null) return;
-    const parsed = parseInt(hexInput, 16);
-    if (Number.isNaN(parsed)) return;
-    editByte(caret, parsed);
-  }, [caret, editByte, hexInput]);
-
-  const commitAsciiEdit = useCallback(() => {
-    if (caret === null || !asciiInput) return;
-    editByte(caret, asciiInput.charCodeAt(0));
-  }, [asciiInput, caret, editByte]);
-
   const rangeLabel = useMemo(() => {
     if (!selectedRange) return "";
     const end =
@@ -108,38 +76,6 @@ export function HexPane() {
     <section className="hex-pane">
       <div className="hex-pane__toolbar">
         <span>{rangeLabel}</span>
-        {caret !== null && (
-          <div className="hex-pane__editor">
-            <label>
-              HEX
-              <input
-                value={hexInput}
-                onChange={(e) => setHexInput(e.target.value.toUpperCase())}
-                onBlur={commitHexEdit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    commitHexEdit();
-                  }
-                }}
-                maxLength={2}
-              />
-            </label>
-            <label>
-              ASCII
-              <input
-                value={asciiInput}
-                onChange={(e) => setAsciiInput(e.target.value.slice(0, 1))}
-                onBlur={commitAsciiEdit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    commitAsciiEdit();
-                  }
-                }}
-                maxLength={1}
-              />
-            </label>
-          </div>
-        )}
       </div>
       {buffer ? (
         <div
