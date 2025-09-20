@@ -80,6 +80,22 @@ export function TopBar() {
     }
   };
 
+  const handleDownloadKsy = () => {
+    if (!ksySource.trim()) {
+      return;
+    }
+    const blob = new Blob([ksySource], { type: "text/yaml" });
+    const url = URL.createObjectURL(blob);
+    const baseName = fileMeta?.name?.replace(/\.[^./]+$/, "")?.trim() || "schema";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${baseName}.ksy`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <header className="top-bar">
       <div className="top-bar__section">
@@ -103,6 +119,9 @@ export function TopBar() {
       <div className="top-bar__section">
         <button onClick={() => applyKsy()} disabled={!ksySource.trim()}>
           KSY適用
+        </button>
+        <button onClick={handleDownloadKsy} disabled={!ksySource.trim()}>
+          KSYを書き出す
         </button>
         <label>
           Hex列:
