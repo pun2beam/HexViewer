@@ -23,6 +23,14 @@ export interface KaitaiFieldSpec {
   [key: string]: unknown;
 }
 
+export interface KaitaiInstanceSpec {
+  type?: string | KaitaiTypeSwitch;
+  repeat?: string;
+  "repeat-expr"?: number | string;
+  doc?: string;
+  [key: string]: unknown;
+}
+
 export interface KaitaiTypeSwitch {
   "switch-on": unknown;
   cases: Record<string, string>;
@@ -31,6 +39,7 @@ export interface KaitaiTypeSwitch {
 export interface KaitaiTypeSpec {
   seq?: KaitaiFieldSpec[];
   types?: Record<string, KaitaiTypeSpec>;
+  instances?: Record<string, KaitaiInstanceSpec>;
 }
 
 export interface CompilationResult {

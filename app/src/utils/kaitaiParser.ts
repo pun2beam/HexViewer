@@ -433,6 +433,90 @@ function buildFields(
     }
   }
 
+  nodes.push(
+    ...buildInstanceNodes(
+      typeSpec,
+      instance,
+      debugMap,
+      path,
+      schema,
+      contextStack,
+      registry
+    )
+  );
+
+  return nodes;
+}
+
+function buildInstanceNodes(
+  typeSpec: KaitaiTypeSpec,
+  instance: ParsedInstance,
+  debug: DebugMap,
+  path: string[],
+  schema: KaitaiSchema,
+  contextStack: KaitaiTypeSpec[],
+  registry: Map<string, KaitaiTypeSpec>
+): AstNode[] {
+  const instances = typeSpec.instances;
+  if (!instances) {
+    return [];
+  }
+
+  const nodes: AstNode[] = [];
+  for (const [instanceId, instanceSpec] of Object.entries(instances)) {
+    const resolvedName = toCamelCase(instanceId);
+    const host = instance as Record<string, unknown>;
+    let value: unknown;
+    let error: unknown;
+
+    try {
+      value = host[resolvedName];
+    } catch (err) {
+      error = err;
+    }
+
+    if (value === undefined && error === undefined && resolvedName !== instanceId) {
+      try {
+        value = host[instanceId];
+      } catch (err) {
+        error = err;
+      }
+    }
+
+    const debugKey = resolveInstanceDebugKey(instanceId, resolvedName, debug);
+    const debugEntry = debugKey ? debug[debugKey] : undefined;
+    const entry: DebugEntry = debugEntry ?? {};
+    const fieldLike: KaitaiFieldSpec = {
+      id: instanceId,
+      ...(instanceSpec as Record<string, unknown>),
+    };
+
+    const node = buildNode(
+      instanceId,
+      value,
+      entry,
+      [...path, instanceId],
+      schema,
+      contextStack,
+      registry,
+      fieldLike
+    );
+
+    if (error) {
+      const existing = node.errors ?? [];
+      const message = error instanceof Error ? error.message : String(error);
+      node.errors = [
+        ...existing,
+        {
+          message,
+          nodePath: node.id,
+        },
+      ];
+    }
+
+    nodes.push(node);
+  }
+
   return nodes;
 }
 
@@ -443,6 +527,21 @@ function resolveDebugKey(fieldId: string, debugMap: DebugMap): string | undefine
   const camel = toCamelCase(fieldId);
   if (Object.prototype.hasOwnProperty.call(debugMap, camel)) {
     return camel;
+  }
+  return undefined;
+}
+
+function resolveInstanceDebugKey(
+  instanceId: string,
+  resolvedId: string,
+  debugMap: DebugMap
+): string | undefined {
+  const candidates = [`_m_${resolvedId}`, `_m_${instanceId}`];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (Object.prototype.hasOwnProperty.call(debugMap, candidate)) {
+      return candidate;
+    }
   }
   return undefined;
 }
