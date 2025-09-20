@@ -299,7 +299,7 @@
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
   font-size: 0.9rem;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.9);
   color: inherit;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
