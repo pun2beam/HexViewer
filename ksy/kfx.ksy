@@ -37,7 +37,7 @@ types:
       - id: container_info_length
         type: u4
       - id: rest
-        size: header_length - _root._io.pos - 14
+        size: "(header_length > _io.pos ? header_length - _io.pos : 0)"
   # ---- Generic Amazon Ion binary ----
   ion_stream:
     doc: Concatenation of Ion values until EOF.
