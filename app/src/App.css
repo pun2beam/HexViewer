@@ -394,7 +394,7 @@
 .hex-row__ascii {
   justify-content: center;
   justify-items: center;
-  gap: 0.15rem;
+  gap: 0.07rem;
 }
 
 .hex-byte,
@@ -407,7 +407,7 @@
 }
 
 .ascii-byte {
-  padding: 0.15rem 0.15rem;
+  padding: 0.15rem 0.07rem;
 }
 
 .hex-byte:hover,
