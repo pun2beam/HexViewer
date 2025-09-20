@@ -3,12 +3,8 @@ meta:
   title: Kindle KFX container (best-effort)
   file-extension:
     - kfx
-    - kfx-zip
   ks-version: 0.9
-  endian: be
-
-imports:
-  - zip
+  endian: le
 
 doc: |
   Best-effort KFX loader:
@@ -23,8 +19,7 @@ seq:
     type:
       switch-on: sig4
       cases:
-        0x504B0304: zip.zip         # 'PK\x03\x04'
-        0x434F4E54: cont_container  # 'CONT'
+        0x544E4F43: cont_container  # 'CONT'
         _: ion_stream
     size-eos: true
 
@@ -32,11 +27,6 @@ types:
   # ---- Minimal 'CONT' container stub (structure unknown in detail) ----
   cont_container:
     seq:
-      - id: signature
-        type: str
-        size: 4
-        encoding: ASCII
-        doc: Magic 'CONT'
       - id: version
         type: u2
         doc: Container format version (observed 1 or 2 per various notes)
@@ -46,14 +36,9 @@ types:
         type: u4
       - id: container_info_length
         type: u4
-        doc: Container info blob length
       - id: rest
         type: bytes
-        size: "header_length > 18 ? header_length - 18 : 0"
-        doc: |
-          Remaining header bytes after the fixed fields above.
-          Layout still unknown; adjust once specification is available.
-
+        size: header_length - _root._io.pos - 14
   # ---- Generic Amazon Ion binary ----
   ion_stream:
     doc: Concatenation of Ion values until EOF.
