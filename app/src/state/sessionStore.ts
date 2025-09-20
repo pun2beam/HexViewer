@@ -23,11 +23,12 @@ interface SessionState {
   history: Uint8Array[];
   future: Uint8Array[];
   isParsing: boolean;
+  parseToken: symbol | null;
   errors: string[];
   loadFile: (file: File) => Promise<void>;
   setBuffer: (data: Uint8Array, meta?: SessionFileMeta | null) => Promise<void>;
   setKsySource: (source: string) => void;
-  applyKsy: (source?: string) => void;
+  applyKsy: (source?: string) => Promise<void>;
   selectNode: (node: AstNode | null) => void;
   selectRange: (range: Range | null) => void;
   setHexCols: (cols: 16 | 24 | 32) => void;
@@ -64,6 +65,7 @@ export const useSessionStore = create<SessionState>()(
       future: [],
       isParsing: false,
       errors: [],
+      parseToken: null,
 
       loadFile: async (file: File) => {
         const buffer = new Uint8Array(await file.arrayBuffer());
@@ -80,7 +82,7 @@ export const useSessionStore = create<SessionState>()(
         const cloned = cloneBuffer(data);
         set({ buffer: cloned, fileMeta: meta ?? get().fileMeta, history: [], future: [] });
         if (get().ksySource.trim()) {
-          get().applyKsy();
+          await get().applyKsy();
         } else {
           set({ parseResult: null });
         }
@@ -90,17 +92,24 @@ export const useSessionStore = create<SessionState>()(
         set({ ksySource: source });
       },
 
-      applyKsy: (source?: string) => {
+      applyKsy: async (source?: string) => {
         const currentSource = source ?? get().ksySource;
-        set({ ksySource: currentSource });
+        const token = Symbol("parse");
+        set({ ksySource: currentSource, isParsing: true, parseToken: token });
         const buffer = get().buffer;
         if (!buffer) {
-          set({ parseResult: null, errors: [] });
+          set({ parseResult: null, errors: [], isParsing: false, parseToken: null });
           return;
         }
         try {
-          const result = parseWithKsy(buffer, currentSource);
-          set({ parseResult: result, errors: result.errors.map((e) => e.message) });
+          const result = await parseWithKsy(buffer, currentSource);
+          if (get().parseToken !== token) {
+            return;
+          }
+          set({
+            parseResult: result,
+            errors: result.errors.map((e) => e.message),
+          });
           if (result.root) {
             set({
               selectedNodeId: result.root.id,
@@ -109,10 +118,17 @@ export const useSessionStore = create<SessionState>()(
             });
           }
         } catch (err) {
+          if (get().parseToken !== token) {
+            return;
+          }
           set({
             parseResult: null,
             errors: [err instanceof Error ? err.message : String(err)],
           });
+        } finally {
+          if (get().parseToken === token) {
+            set({ isParsing: false, parseToken: null });
+          }
         }
       },
 
@@ -163,7 +179,7 @@ export const useSessionStore = create<SessionState>()(
         set((state) => ({ history: [...state.history, cloneBuffer(buffer)], future: [] }));
         set({ buffer: newBuffer });
         if (get().ksySource.trim()) {
-          get().applyKsy();
+          void get().applyKsy();
         }
       },
 
@@ -178,7 +194,7 @@ export const useSessionStore = create<SessionState>()(
           future: buffer ? [cloneBuffer(buffer), ...get().future] : get().future,
         });
         if (get().ksySource.trim()) {
-          get().applyKsy();
+          void get().applyKsy();
         }
       },
 
@@ -193,7 +209,7 @@ export const useSessionStore = create<SessionState>()(
           history: buffer ? [...get().history, cloneBuffer(buffer)] : get().history,
         });
         if (get().ksySource.trim()) {
-          get().applyKsy();
+          void get().applyKsy();
         }
       },
 
@@ -228,7 +244,7 @@ export const useSessionStore = create<SessionState>()(
           future: [],
         });
         if (buffer && session.ksySource) {
-          get().applyKsy(session.ksySource);
+          await get().applyKsy(session.ksySource);
         }
       },
     }),
