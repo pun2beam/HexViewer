@@ -294,7 +294,7 @@
 .ksy-editor textarea {
   width: 100%;
   flex: 1;
-  min-height: 0;
+  min-height: 240px;
   resize: none;
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
@@ -304,10 +304,6 @@
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 0.75rem;
-}
-
-.ksy-editor button {
-  align-self: flex-start;
 }
 
 .hex-pane {

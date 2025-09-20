@@ -2,11 +2,10 @@ import { useSessionStore } from "../state/sessionStore";
 import { useShallow } from "zustand/react/shallow";
 
 export function KsyEditor() {
-  const { ksySource, setKsySource, applyKsy } = useSessionStore(
+  const { ksySource, setKsySource } = useSessionStore(
     useShallow((state) => ({
       ksySource: state.ksySource,
       setKsySource: state.setKsySource,
-      applyKsy: state.applyKsy,
     })),
   );
 
@@ -19,9 +18,6 @@ export function KsyEditor() {
         spellCheck={false}
         placeholder="KSY (YAML) を貼り付けてください"
       />
-      <button onClick={() => applyKsy()} disabled={!ksySource.trim()}>
-        再パース
-      </button>
     </section>
   );
 }
