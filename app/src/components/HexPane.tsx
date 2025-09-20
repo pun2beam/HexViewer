@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useSessionStore } from "../state/sessionStore";
 import { useShallow } from "zustand/react/shallow";
 
@@ -26,6 +34,9 @@ export function HexPane() {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(480);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [addressInput, setAddressInput] = useState("");
+  const [addressBase, setAddressBase] = useState<"hex" | "dec">("hex");
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -45,6 +56,11 @@ export function HexPane() {
     setScrollTop(0);
   }, [buffer]);
 
+  useEffect(() => {
+    setAddressError(null);
+    setAddressInput("");
+  }, [buffer]);
+
   const rowCount = buffer ? Math.ceil(buffer.length / hexCols) : 0;
   const totalHeight = rowCount * ROW_HEIGHT;
   const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT);
@@ -56,6 +72,75 @@ export function HexPane() {
       selectRange({ start: index, length: 1 });
     },
     [selectRange]
+  );
+
+  useEffect(() => {
+    if (!selectedRange) {
+      setAddressInput("");
+      return;
+    }
+    const value = selectedRange.start;
+    setAddressInput(
+      addressBase === "hex" ? value.toString(16).toUpperCase() : value.toString(10)
+    );
+  }, [selectedRange, addressBase]);
+
+  const handleAddressFormatChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value === "dec" ? "dec" : "hex";
+    setAddressBase(value);
+    setAddressError(null);
+  };
+
+  const handleJumpSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!buffer) return;
+      const rawValue = addressInput.trim();
+      if (!rawValue) {
+        setAddressError("アドレスを入力してください");
+        return;
+      }
+
+      let parsed: number | null = null;
+      if (addressBase === "hex") {
+        const normalized = rawValue.startsWith("0x") || rawValue.startsWith("0X")
+          ? rawValue.slice(2)
+          : rawValue;
+        if (/^[0-9a-fA-F]+$/.test(normalized)) {
+          parsed = parseInt(normalized, 16);
+        }
+      } else {
+        if (/^[0-9]+$/.test(rawValue)) {
+          parsed = parseInt(rawValue, 10);
+        }
+      }
+
+      if (parsed === null || Number.isNaN(parsed)) {
+        setAddressError("無効なアドレスです");
+        return;
+      }
+
+      if (parsed < 0 || parsed >= buffer.length) {
+        setAddressError(
+          `アドレス範囲外です (0 - ${Math.max(buffer.length - 1, 0)})`
+        );
+        return;
+      }
+
+      setAddressError(null);
+      selectRange({ start: parsed, length: 1 });
+      const element = containerRef.current;
+      if (element) {
+        const rowIndex = Math.floor(parsed / hexCols);
+        const targetScrollTop = Math.max(
+          0,
+          rowIndex * ROW_HEIGHT - Math.max((viewportHeight - ROW_HEIGHT) / 2, 0)
+        );
+        element.scrollTop = targetScrollTop;
+        setScrollTop(targetScrollTop);
+      }
+    },
+    [addressInput, addressBase, buffer, hexCols, selectRange, viewportHeight]
   );
 
   const rangeLabel = useMemo(() => {
@@ -76,7 +161,46 @@ export function HexPane() {
     <section className="hex-pane">
       <div className="hex-pane__toolbar">
         <span>{rangeLabel}</span>
+        {buffer && (
+          <form className="hex-pane__jump" onSubmit={handleJumpSubmit}>
+            <div className="hex-pane__jump-format">
+              <label>
+                <input
+                  type="radio"
+                  name="address-format"
+                  value="hex"
+                  checked={addressBase === "hex"}
+                  onChange={handleAddressFormatChange}
+                />
+                Hex
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="address-format"
+                  value="dec"
+                  checked={addressBase === "dec"}
+                  onChange={handleAddressFormatChange}
+                />
+                Dec
+              </label>
+            </div>
+            <input
+              type="text"
+              value={addressInput}
+              onChange={(event) => {
+                setAddressInput(event.target.value);
+                if (addressError) {
+                  setAddressError(null);
+                }
+              }}
+              placeholder={addressBase === "hex" ? "1A" : "26"}
+            />
+            <button type="submit">ジャンプ</button>
+          </form>
+        )}
       </div>
+      {addressError && <div className="hex-pane__jump-error">{addressError}</div>}
       {buffer ? (
         <div
           ref={containerRef}
