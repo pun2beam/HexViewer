@@ -13,6 +13,7 @@ seq:
 instances:
   container_stream:
     pos: file_hdr.ofs_container_info
+    size: file_hdr.len_container_info
     type: container_info
 
 
