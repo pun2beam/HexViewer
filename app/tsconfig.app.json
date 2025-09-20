@@ -14,6 +14,10 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "baseUrl": "./",
+    "paths": {
+      "iconv-lite": ["src/shims/iconv-lite.ts"]
+    },
 
     /* Linting */
     "strict": true,
