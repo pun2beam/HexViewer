@@ -37,7 +37,6 @@ types:
       - id: container_info_length
         type: u4
       - id: rest
-        type: bytes
         size: header_length - _root._io.pos - 14
   # ---- Generic Amazon Ion binary ----
   ion_stream:
