@@ -56,14 +56,18 @@ types:
         type: var_uint
         if: td.len_nibble == 0xE and not td.is_nop
       - id: repr
-        size: "_root.calc_repr_size(td.len_nibble, length ? length.value : 0)"
+        size: repr_size
         type:
           switch-on: td.type_code
           cases:
             0xB: ion_container_stream   # list
             0x9: ion_container_stream   # sexp
             0xD: ion_struct_stream      # struct
-        if: "_root.calc_repr_size(td.len_nibble, length ? length.value : 0) > 0"
+        if: repr_size > 0
+
+    instances:
+      repr_size:
+        value: "(td.len_nibble < 0xE ? td.len_nibble : (td.len_nibble == 0xE ? (length ? length.value : 0) : 0))"
 
   ion_container_stream:
     seq:
@@ -106,28 +110,16 @@ types:
         repeat-until: (bytes[-1] & 0x80) == 0
     instances:
       value:
-        value: _root.varuint_to_u(bytes)
+        value: "(bytes.size == 0 ? 0 :
+          (bytes[0] & 0x7F) +
+          (bytes.size > 1 ? (((bytes[1] & 0x7F) << 7)) : 0) +
+          (bytes.size > 2 ? (((bytes[2] & 0x7F) << 14)) : 0) +
+          (bytes.size > 3 ? (((bytes[3] & 0x7F) << 21)) : 0) +
+          (bytes.size > 4 ? (((bytes[4] & 0x7F) << 28)) : 0) +
+          (bytes.size > 5 ? (((bytes[5] & 0x7F) << 35)) : 0) +
+          (bytes.size > 6 ? (((bytes[6] & 0x7F) << 42)) : 0) +
+          (bytes.size > 7 ? (((bytes[7] & 0x7F) << 49)) : 0) +
+          (bytes.size > 8 ? (((bytes[8] & 0x7F) << 56)) : 0) +
+          (bytes.size > 9 ? (((bytes[9] & 0x7F) << 63)) : 0)
+        )"
 
-instances:
-  calc_repr_size:
-    params:
-      - id: l_nib
-      - id: explicit_len
-    value: "(l_nib < 0xE ? l_nib : (l_nib == 0xE ? explicit_len : 0))"
-
-  varuint_to_u:
-    params:
-      - id: arr
-    value:
-      "(arr.size == 0 ? 0 :
-        (arr[0] & 0x7F) +
-        (arr.size > 1 ? (((arr[1] & 0x7F) << 7)) : 0) +
-        (arr.size > 2 ? (((arr[2] & 0x7F) << 14)) : 0) +
-        (arr.size > 3 ? (((arr[3] & 0x7F) << 21)) : 0) +
-        (arr.size > 4 ? (((arr[4] & 0x7F) << 28)) : 0) +
-        (arr.size > 5 ? (((arr[5] & 0x7F) << 35)) : 0) +
-        (arr.size > 6 ? (((arr[6] & 0x7F) << 42)) : 0) +
-        (arr.size > 7 ? (((arr[7] & 0x7F) << 49)) : 0) +
-        (arr.size > 8 ? (((arr[8] & 0x7F) << 56)) : 0) +
-        (arr.size > 9 ? (((arr[9] & 0x7F) << 63)) : 0)
-      )"
