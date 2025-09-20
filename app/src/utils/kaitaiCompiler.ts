@@ -13,6 +13,7 @@ export interface KaitaiSchema {
   };
   seq?: KaitaiFieldSpec[];
   types?: Record<string, KaitaiTypeSpec>;
+  instances?: Record<string, KaitaiInstanceSpec>;
 }
 
 export interface KaitaiFieldSpec {
