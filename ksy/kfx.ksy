@@ -12,7 +12,7 @@ seq:
 
 instances:
   container_stream:
-    pos: ofs_container_info
+    pos: file_hdr.ofs_container_info
     type: container_info
 
 
