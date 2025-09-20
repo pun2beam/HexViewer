@@ -635,6 +635,7 @@ export async function parseWithKsy(
   const rootSpec: KaitaiTypeSpec = {
     seq: schema.seq ?? [],
     types: schema.types ?? {},
+    instances: schema.instances ?? {},
   };
   const className = toPascalCase(schema.meta?.id ?? "root");
   const moduleName = `${className}.js`;
