@@ -44,8 +44,7 @@ types:
     seq:
       - id: values
         type: ion_value
-        repeat: until
-        repeat-until: _io.is_eof
+        repeat: eos
 
   ion_value:
     seq:
@@ -66,25 +65,19 @@ types:
 
     instances:
       repr_size:
-        value: (td.len_nibble < 0xE
-          ? td.len_nibble
-          : (td.len_nibble == 0xE
-            ? (td.is_nop ? 0 : length.value)
-            : 0))
+        value: "(td.len_nibble < 0xE ? td.len_nibble : (td.len_nibble == 0xE ? (td.is_nop ? 0 : length.value) : 0))"
 
   ion_container_stream:
     seq:
       - id: items
         type: ion_value
-        repeat: until
-        repeat-until: _io.is_eof
+        repeat: eos
 
   ion_struct_stream:
     seq:
       - id: fields
         type: ion_struct_field
-        repeat: until
-        repeat-until: _io.is_eof
+        repeat: eos
 
   ion_struct_field:
     seq:
