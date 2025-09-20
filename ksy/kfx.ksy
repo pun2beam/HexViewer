@@ -99,6 +99,11 @@ types:
         value: type_code == 0 and len_nibble == 0
 
   var_uint:
+    doc: >
+      Amazon Ion varUInt values are encoded as base-128 big-endian groups
+      (see the "VarUInt and VarInt Fields" section of the Amazon Ion binary
+      format specification). We therefore accumulate the decoded value by
+      treating the earliest byte in the stream as the most significant group.
     seq:
       - id: bytes
         type: u1
@@ -107,15 +112,15 @@ types:
     instances:
       value:
         value: "(bytes.size == 0 ? 0 :
-          (bytes[0] & 0x7F) +
-          (bytes.size > 1 ? (((bytes[1] & 0x7F) << 7)) : 0) +
-          (bytes.size > 2 ? (((bytes[2] & 0x7F) << 14)) : 0) +
-          (bytes.size > 3 ? (((bytes[3] & 0x7F) << 21)) : 0) +
-          (bytes.size > 4 ? (((bytes[4] & 0x7F) << 28)) : 0) +
-          (bytes.size > 5 ? (((bytes[5] & 0x7F) << 35)) : 0) +
-          (bytes.size > 6 ? (((bytes[6] & 0x7F) << 42)) : 0) +
-          (bytes.size > 7 ? (((bytes[7] & 0x7F) << 49)) : 0) +
-          (bytes.size > 8 ? (((bytes[8] & 0x7F) << 56)) : 0) +
-          (bytes.size > 9 ? (((bytes[9] & 0x7F) << 63)) : 0)
+          (bytes[bytes.size - 1] & 0x7F) +
+          (bytes.size > 1 ? (((bytes[bytes.size - 2] & 0x7F) << 7)) : 0) +
+          (bytes.size > 2 ? (((bytes[bytes.size - 3] & 0x7F) << 14)) : 0) +
+          (bytes.size > 3 ? (((bytes[bytes.size - 4] & 0x7F) << 21)) : 0) +
+          (bytes.size > 4 ? (((bytes[bytes.size - 5] & 0x7F) << 28)) : 0) +
+          (bytes.size > 5 ? (((bytes[bytes.size - 6] & 0x7F) << 35)) : 0) +
+          (bytes.size > 6 ? (((bytes[bytes.size - 7] & 0x7F) << 42)) : 0) +
+          (bytes.size > 7 ? (((bytes[bytes.size - 8] & 0x7F) << 49)) : 0) +
+          (bytes.size > 8 ? (((bytes[bytes.size - 9] & 0x7F) << 56)) : 0) +
+          (bytes.size > 9 ? (((bytes[bytes.size - 10] & 0x7F) << 63)) : 0)
         )"
 
