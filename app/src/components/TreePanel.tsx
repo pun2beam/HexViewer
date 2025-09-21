@@ -15,7 +15,7 @@ function NodeItem({ node, depth }: { node: AstNode; depth: number }) {
   const isSelected = selectedNodeId === node.id;
 
   return (
-    <div className="tree-node" style={{ paddingLeft: depth * 12 }}>
+    <div className="tree-node" style={{ paddingLeft: depth * 6 }}>
       <div className="tree-node__header">
         {hasChildren && (
           <button className="tree-node__toggle" onClick={() => setExpanded((prev) => !prev)}>
